@@ -1,13 +1,110 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
-app.use(express.static(__dirname));
-app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
-io.on('connection', (socket) => {
-    socket.on('draw_shape', (data) => { socket.broadcast.emit('receive_shape', data); });
-});
-server.listen(3000, () => { console.log(`\n🚀 類 ATAK 地圖伺服器已啟動！\n🔗 測試連結：http://localhost:3000`); });
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>類 ATAK 戰術圖像平台</title>
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        #status-bar {
+            position: absolute; top: 10px; left: 50px; z-index: 1000;
+            background: rgba(0, 0, 0, 0.8); color: white;
+            padding: 8px 15px; border-radius: 5px; font-size: 14px;
+        }
+        .control-panel {
+            position: absolute; bottom: 20px; left: 20px; z-index: 1000;
+            background: white; padding: 10px; border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        select, input, button { margin: 5px 0; display: block; width: 100%; padding: 5px; }
+    </style>
+</head>
+<body>
+
+    <div id="status-bar">正在載入戰術房間...</div>
+
+    <div class="control-panel">
+        <label><b>戰術標記工具</b></label>
+        <select id="marker-type">
+            <option value="friendly">🔵 友軍位置 (Friendly)</option>
+            <option value="hostile">🔴 敵軍/威脅 (Hostile)</option>
+            <option value="infantry">⚔️ 任務目標 (Objective)</option>
+        </select>
+        <input type="text" id="marker-label" placeholder="輸入標記名稱">
+        <small style="color: gray;">提示：設定後點擊地圖任意位置即可部署標記</small>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room') || 'public_lobby';
+        
+        document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
+
+        const map = L.map('map').setView([23.6, 121.0], 8);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const markerGroup = L.layerGroup().addTo(map);
+
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const socket = new WebSocket(`${protocol}${window.location.host}`);
+
+        socket.onopen = () => {
+            socket.send(JSON.stringify({ action: 'join', room_id: roomId }));
+        };
+
+        socket.onmessage = (event) => {
+            const parsed = JSON.parse(event.data);
+
+            if (parsed.action === 'init') {
+                markerGroup.clearLayers();
+                parsed.data.forEach(item => drawMarker(item));
+            }
+
+            if (parsed.action === 'broadcast_marker') {
+                drawMarker(parsed.data);
+            }
+        };
+
+        function drawMarker(data) {
+            let color = 'blue';
+            if (data.type === 'hostile') color = 'red';
+            if (data.type === 'infantry') color = 'green';
+
+            const marker = L.circleMarker([data.lat, data.lng], {
+                radius: 10,
+                fillColor: color,
+                color: "#fff",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(markerGroup);
+
+            marker.bindPopup(`<b>${data.label || '未命名標記'}</b><br>類型: ${data.type}`);
+        }
+
+        map.on('click', (e) => {
+            const type = document.getElementById('marker-type').value;
+            const label = document.getElementById('marker-label').value || '未命名標記';
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+
+            const markerData = { type, lat, lng, label };
+
+            socket.send(JSON.stringify({
+                action: 'add_marker',
+                data: markerData
+            }));
+
+            drawMarker(markerData);
+            document.getElementById('marker-label').value = '';
+        });
+    </script>
+</body>
+</html>
