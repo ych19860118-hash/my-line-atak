@@ -1,110 +1,76 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>類 ATAK 戰術圖像平台</title>
-    <link rel="stylesheet" href="https://unpkg.com" />
-    <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        #map { height: 100vh; width: 100vw; }
-        #status-bar {
-            position: absolute; top: 10px; left: 50px; z-index: 1000;
-            background: rgba(0, 0, 0, 0.8); color: white;
-            padding: 8px 15px; border-radius: 5px; font-size: 14px;
-        }
-        .control-panel {
-            position: absolute; bottom: 20px; left: 20px; z-index: 1000;
-            background: white; padding: 10px; border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        }
-        select, input, button { margin: 5px 0; display: block; width: 100%; padding: 5px; }
-    </style>
-</head>
-<body>
+const express = require('express');
+const { Pool } = require('pg');
+const WebSocket = require('ws');
+const path = require('path');
 
-    <div id="status-bar">正在載入戰術房間...</div>
+const app = express();
+const port = process.env.PORT || 3000;
 
-    <div class="control-panel">
-        <label><b>戰術標記工具</b></label>
-        <select id="marker-type">
-            <option value="friendly">🔵 友軍位置 (Friendly)</option>
-            <option value="hostile">🔴 敵軍/威脅 (Hostile)</option>
-            <option value="infantry">⚔️ 任務目標 (Objective)</option>
-        </select>
-        <input type="text" id="marker-label" placeholder="輸入標記名稱">
-        <small style="color: gray;">提示：設定後點擊地圖任意位置即可部署標記</small>
-    </div>
+// 直接提供根目錄下的 index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
-    <div id="map"></div>
+// 1. 初始化 Postgres 連線
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
-    <script src="https://unpkg.com"></script>
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room') || 'public_lobby';
+// 自動建立戰術標記資料表
+pool.query(`
+  CREATE TABLE IF NOT EXISTS group_markers (
+    id SERIAL PRIMARY KEY,
+    room_id VARCHAR(100) NOT NULL,
+    type VARCHAR(50),
+    lat DOUBLE PRECISION,
+    lng DOUBLE PRECISION,
+    label TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+`).catch(err => console.error('資料表建立失敗:', err));
+
+const server = app.listen(port, () => console.log(`伺服器正在運行於連接埠 ${port}`));
+
+// 2. 初始化 WebSocket 伺服器
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', (ws) => {
+  console.log('有新成員連線');
+  let currentRoom = null;
+
+  ws.on('message', async (message) => {
+    try {
+      const parsed = JSON.parse(message);
+      
+      if (parsed.action === 'join') {
+        currentRoom = parsed.room_id;
+        ws.room_id = currentRoom;
+        console.log(`成員已加入戰術房間: ${currentRoom}`);
+
+        const res = await pool.query(
+          'SELECT * FROM group_markers WHERE room_id = $1 ORDER BY created_at ASC',
+          [currentRoom]
+        );
+        ws.send(JSON.stringify({ action: 'init', data: res.rows }));
+      }
+
+      if (parsed.action === 'add_marker' && currentRoom) {
+        const { type, lat, lng, label } = parsed.data;
         
-        document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
-
-        const map = L.map('map').setView([23.6, 121.0], 8);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        const markerGroup = L.layerGroup().addTo(map);
-
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const socket = new WebSocket(`${protocol}${window.location.host}`);
-
-        socket.onopen = () => {
-            socket.send(JSON.stringify({ action: 'join', room_id: roomId }));
-        };
-
-        socket.onmessage = (event) => {
-            const parsed = JSON.parse(event.data);
-
-            if (parsed.action === 'init') {
-                markerGroup.clearLayers();
-                parsed.data.forEach(item => drawMarker(item));
-            }
-
-            if (parsed.action === 'broadcast_marker') {
-                drawMarker(parsed.data);
-            }
-        };
-
-        function drawMarker(data) {
-            let color = 'blue';
-            if (data.type === 'hostile') color = 'red';
-            if (data.type === 'infantry') color = 'green';
-
-            const marker = L.circleMarker([data.lat, data.lng], {
-                radius: 10,
-                fillColor: color,
-                color: "#fff",
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.8
-            }).addTo(markerGroup);
-
-            marker.bindPopup(`<b>${data.label || '未命名標記'}</b><br>類型: ${data.type}`);
-        }
-
-        map.on('click', (e) => {
-            const type = document.getElementById('marker-type').value;
-            const label = document.getElementById('marker-label').value || '未命名標記';
-            const lat = e.latlng.lat;
-            const lng = e.latlng.lng;
-
-            const markerData = { type, lat, lng, label };
-
-            socket.send(JSON.stringify({
-                action: 'add_marker',
-                data: markerData
-            }));
-
-            drawMarker(markerData);
-            document.getElementById('marker-label').value = '';
+        await pool.query(
+          'INSERT INTO group_markers (room_id, type, lat, lng, label) VALUES ($1, $2, $3, $4, $5)',
+          [currentRoom, type, lat, lng, label]
+        );
+        
+        wss.clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN && client.room_id === currentRoom) {
+            client.send(JSON.stringify({ action: 'broadcast_marker', data: parsed.data }));
+          }
         });
-    </script>
-</body>
-</html>
+      }
+    } catch (err) {
+      console.error('處理訊息發生錯誤:', err);
+    }
+  });
+});
