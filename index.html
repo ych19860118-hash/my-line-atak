@@ -1,82 +1,109 @@
-﻿<!DOCTYPE html>
-<html>
+<!DOCTYPE html>
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>類 ATAK 地圖 (多圖形同步版)</title>
-    <link rel="stylesheet" href="/node_modules/leaflet/dist/leaflet.css" />
-    <script src="/node_modules/leaflet/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="/node_modules/@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css" />
-    <script src="/node_modules/@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>類 ATAK 戰術圖像平台</title>
+    <link rel="stylesheet" href="https://unpkg.com" />
     <style>
-        body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #f0f0f0; }
-        #info-box { position: absolute; top: 10px; right: 10px; z-index: 1000; background: rgba(0,0,0,0.8); color: white; padding: 10px; border-radius: 5px; font-family: sans-serif; font-size: 12px; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        #status-bar {
+            position: absolute; top: 10px; left: 50px; z-index: 1000;
+            background: rgba(0, 0, 0, 0.8); color: white;
+            padding: 8px 15px; border-radius: 5px; font-size: 14px;
+        }
+        .control-panel {
+            position: absolute; bottom: 20px; left: 20px; z-index: 1000;
+            background: white; padding: 10px; border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        select, input, button { margin: 5px 0; display: block; width: 100%; padding: 5px; }
     </style>
 </head>
 <body>
-    <div id="info-box">類 ATAK 測試：請點擊左側工具列開始畫圖</div>
+
+    <div id="status-bar">正在載入戰術房間...</div>
+
+    <div class="control-panel">
+        <label><b>戰術標記工具</b></label>
+        <select id="marker-type">
+            <option value="friendly">🔵 友軍位置 (Friendly)</option>
+            <option value="hostile">🔴 敵軍/威脅 (Hostile)</option>
+            <option value="infantry">⚔️ 任務目標 (Objective)</option>
+        </select>
+        <input type="text" id="marker-label" placeholder="輸入標記名稱">
+        <small style="color: gray;">提示：設定後點擊地圖任意位置即可部署標記</small>
+    </div>
+
     <div id="map"></div>
+
+    <script src="https://unpkg.com"></script>
     <script>
-        const map = L.map('map').setView([23.6, 121.0], 8);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room') || 'public_lobby';
         
-        map.pm.addControls({ position: 'topleft', drawMarker: true, drawPolyline: true, drawRectangle: true, drawPolygon: true, drawCircle: true, removalMode: true });
-        const socket = io();
+        document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
 
-        // 【發送端】偵測畫圖類型並打包完整形狀
-        map.on('pm:create', (e) => {
-            const layer = e.layer;
-            const shapeType = e.shape; 
-            let shapeData = {};
+        const map = L.map('map').setView([23.6, 121.0], 8);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-            if (shapeType === 'Circle') {
-                shapeData = {
-                    type: 'Circle',
-                    center: [layer.getLatLng().lat, layer.getLatLng().lng],
-                    radius: layer.getRadius()
-                };
-            } else if (shapeType === 'Marker') {
-                shapeData = {
-                    type: 'Marker',
-                    latlng: [layer.getLatLng().lat, layer.getLatLng().lng]
-                };
-            } else if (shapeType === 'Line' || shapeType === 'Polyline') {
-                shapeData = {
-                    type: 'Line',
-                    latlngs: layer.getLatLngs().map(p => [p.lat, p.lng])
-                };
-            } else if (shapeType === 'Rectangle' || shapeType === 'Polygon') {
-                shapeData = {
-                    type: shapeType,
-                    latlngs: layer.getLatLngs()[0].map(p => [p.lat, p.lng])
-                };
+        const markerGroup = L.layerGroup().addTo(map);
+
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const socket = new WebSocket(`${protocol}${window.location.host}`);
+
+        socket.onopen = () => {
+            socket.send(JSON.stringify({ action: 'join', room_id: roomId }));
+        };
+
+        socket.onmessage = (event) => {
+            const parsed = JSON.parse(event.data);
+
+            if (parsed.action === 'init') {
+                markerGroup.clearLayers();
+                parsed.data.forEach(item => drawMarker(item));
             }
 
-            socket.emit('draw_shape', shapeData);
-        });
-
-        // 【接收端】根據不同的形狀用專屬的指令還原出來
-        socket.on('receive_shape', (data) => {
-            let newLayer;
-            const styleOptions = { color: '#ff1744', weight: 4, fillColor: '#ff1744', fillOpacity: 0.2 };
-
-            if (data.type === 'Circle') {
-                newLayer = L.circle(data.center, { radius: data.radius, ...styleOptions });
-            } else if (data.type === 'Marker') {
-                newLayer = L.marker(data.latlng);
-            } else if (data.type === 'Line') {
-                newLayer = L.polyline(data.latlngs, styleOptions);
-            } else if (data.type === 'Rectangle') {
-                newLayer = L.rectangle(data.latlngs, styleOptions);
-            } else if (data.type === 'Polygon') {
-                newLayer = L.polygon(data.latlngs, styleOptions);
+            if (parsed.action === 'broadcast_marker') {
+                drawMarker(parsed.data);
             }
+        };
 
-            if (newLayer) {
-                newLayer.addTo(map);
-                document.getElementById('info-box').innerText = `系統提示：收到隊友畫的 [${data.type}] 戰術圖形！`;
-            }
+        function drawMarker(data) {
+            let color = 'blue';
+            if (data.type === 'hostile') color = 'red';
+            if (data.type === 'infantry') color = 'green';
+
+            const marker = L.circleMarker([data.lat, data.lng], {
+                radius: 10,
+                fillColor: color,
+                color: "#fff",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(markerGroup);
+
+            marker.bindPopup(`<b>${data.label || '未命名標記'}</b><br>類型: ${data.type}`);
+        }
+
+        map.on('click', (e) => {
+            const type = document.getElementById('marker-type').value;
+            const label = document.getElementById('marker-label').value || '未命名標記';
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+
+            const markerData = { type, lat, lng, label };
+
+            socket.send(JSON.stringify({
+                action: 'add_marker',
+                data: markerData
+            }));
+
+            drawMarker(markerData);
+            document.getElementById('marker-label').value = '';
         });
     </script>
 </body>
