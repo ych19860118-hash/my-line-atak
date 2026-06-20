@@ -1,17 +1,7 @@
-const express = require('express');
 const { Pool } = require('pg');
 const WebSocket = require('ws');
-const path = require('path');
 
-const app = express();
 const port = process.env.PORT || 3000;
-
-// 🌟 核心修正：將整個根目錄設為靜態檔案目錄，強迫網頁正確向外抓取所有 JS/CSS 資源
-app.use(express.static(__dirname));
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
 
 // 1. 初始化 Postgres 連線
 const pool = new Pool({
@@ -32,47 +22,43 @@ pool.query(`
   );
 `).catch(err => console.error('資料表建立失敗:', err));
 
-const server = app.listen(port, () => console.log(`伺服器正在運行於連接埠 ${port}`));
-
-// 2. 初始化 WebSocket 伺服器
-const wss = new WebSocket.Server({ server });
+// 2. 直接啟動純 WebSocket 伺服器
+const wss = new WebSocket.Server({ port }, () => {
+  console.log(`戰術數據中心正在運行於連接埠 ${port}`);
+});
 
 wss.on('connection', (ws) => {
-  console.log('有新成員連線');
-  ws.room_id = null; // 初始化房間名稱
+  console.log('有新隊員連線到數據中心');
+  ws.room_id = null; 
 
   ws.on('message', async (message) => {
     try {
       const parsed = JSON.parse(message);
       
-      // 1. 成員進房間：綁定房號並撈取該群組的歷史紀錄
+      // 1. 成員進房間：撈歷史紀錄
       if (parsed.action === 'join') {
-        const targetRoom = parsed.room_id;
-        ws.room_id = targetRoom; 
-        console.log(`成員已加入戰術房間: ${targetRoom}`);
+        ws.room_id = parsed.room_id; 
+        console.log(`成員已加入戰術房間: ${ws.room_id}`);
 
         const res = await pool.query(
           'SELECT * FROM group_markers WHERE room_id = $1 ORDER BY created_at ASC',
-          [targetRoom]
+          [ws.room_id]
         );
         ws.send(JSON.stringify({ action: 'init', data: res.rows }));
       }
 
-      // 2. 新增標記：【嚴格隔離】只發給房間 ID 完全一致的在線隊員
+      // 2. 新增標記：隔離轉發
       if (parsed.action === 'add_marker') {
         const currentRoom = ws.room_id;
-        
         if (!currentRoom) return;
 
         const { type, lat, lng, label } = parsed.data;
 
-        // 存入資料庫
         await pool.query(
           'INSERT INTO group_markers (room_id, type, lat, lng, label) VALUES ($1, $2, $3, $4, $5)',
           [currentRoom, type, lat, lng, label]
         );
         
-        // 【核心隔離廣播】
         wss.clients.forEach(client => {
           if (client.readyState === WebSocket.OPEN && client.room_id === currentRoom) {
             client.send(JSON.stringify({ action: 'broadcast_marker', data: parsed.data }));
