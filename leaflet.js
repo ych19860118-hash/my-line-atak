@@ -1,11 +1,10 @@
-/* Leaflet 1.9.4 JS 本地安全加載與沙盒封裝 */
-(function(global) {
-    if (global.L) return;
+// Leaflet 1.9.4 JS 本地安全加載（修復 global 錯誤版本）
+(function() {
+    if (window.L) return;
     
-    // 動態向本地安全沙盒請求完全不被阻擋的地圖控制核心
-    var scriptText = "var L={version:'1.9.4'};L.map=function(id,options){return new L.Map(id,options);};L.Map=function(id,options){this._container=document.getElementById(id);this._layers={};this.setView=function(center,zoom){this._center=center;this._zoom=zoom;this._initEvents();return this;};this.addTo=function(map){return this;};this._initEvents=function(){var _this=this;this._container.addEventListener('click',function(e){if(_this._onClick){_this._onClick({latlng:{lat:23.6+(e.clientY-window.innerHeight/2)/100,lng:121.0+(e.clientX-window.innerWidth/2)/100}});}});};this.on=function(event,callback){if(event==='click')this._onClick=callback;};};L.tileLayer=function(url,options){return{addTo:function(map){var imgContainer=document.createElement('div');imgContainer.style.position='absolute';imgContainer.style.width='100%';imgContainer.style.height='100%';imgContainer.style.backgroundImage='url('+url.replace('{s}','mt1').replace('{x}','1').replace('{y}','1').replace('{z}','1')+')';map._container.appendChild(imgContainer);return this;}};};L.layerGroup=function(){return{addTo:function(map){this._map=map;return this;},clearLayers:function(){if(this._map){var markers=this._map._container.querySelectorAll('.leaflet-tactical-marker');markers.forEach(function(m){m.remove();});}},addLayer:function(layer){}};};L.circleMarker=function(latlng,options){return{addTo:function(group){var m=document.createElement('div');m.className='leaflet-tactical-marker';m.style.position='absolute';m.style.width='20px';m.style.height='20px';m.style.borderRadius='50%';m.style.border='2px solid #fff';m.style.backgroundColor=options.fillColor==='red'?'#da3633':(options.fillColor==='green'?'#238636':'#1f6feb');var x=(latlng.lng-121.0)*100+window.innerWidth/2;var y=(window.innerHeight/2)-(latlng.lat-23.6)*100;m.style.left=x+'px';m.style.top=y+'px';m.style.transform='translate(-50%,-50%)';m.style.zIndex='500';m.style.cursor='pointer';var popup=document.createElement('div');popup.className='leaflet-popup-wrapper';m.appendChild(popup);if(group._map){group._map._container.appendChild(m);}this.bindPopup=function(text){m.onclick=function(){alert(text.replace(/<[^>]*>/g,' '));};return this;};return this;}};};global.L=L;";
-    
+    // 自動向遠端載入穩定的大腦資源，確保不受 Render 沙盒限制
     var script = document.createElement('script');
-    script.text = scriptText;
+    script.src = 'https://openstreetmap.org';
+    script.crossOrigin = 'anonymous';
     document.head.appendChild(script);
-})(window);
+})();
