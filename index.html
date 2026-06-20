@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 🌟 核心修正：強迫地圖資源在最頂端優先載入 -->
-    <link rel="stylesheet" href="https://unpkg.com" />
-    <script src="https://unpkg.com"></script>
+    <!-- 🌟 回歸最安全的官方雲端網址資源（搭配已修正的後端路徑） -->
+    <link rel="stylesheet" href="https://unpkg.com" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #eee; }
@@ -51,7 +51,7 @@
         const roomId = urlParams.get('room') || 'public_lobby';
         document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
 
-        // 2. 初始化台灣地圖 (此時 L 絕對已經定義好了)
+        // 2. 初始化台灣地圖
         const map = L.map('map').setView([23.6, 121.0], 8);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
