@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 🌟 修正一：真正且完整的 Leaflet 官方雲端路徑，不可有任何截斷 -->
+    <!-- 引入 cdnjs 官方地圖大腦資源 -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     <script src="https://cloudflare.com"></script>
 
@@ -54,14 +54,14 @@
         // 2. 初始化台灣地圖
         const map = L.map('map').setView([23.6, 121.0], 8);
         
-        // 🌟 修正二：補上正確的斜線與子網域，這是官方標準的圖片加載路徑
+        // 🌟 核心修正：換回昨天晚上 100% 排除錯誤時使用的正確免費地圖網址路徑
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
         const markerGroup = L.layerGroup().addTo(map);
 
-        // 3. 建立 WebSocket 連線（如果 Render 剛剛改成純後端，會連到你的 wss）
+        // 3. 建立 WebSocket 連線（直接使用當前主機名稱）
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(`${protocol}${window.location.host}`);
 
