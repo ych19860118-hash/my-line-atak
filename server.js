@@ -6,7 +6,9 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// 直接提供根目錄下的 index.html
+// 🌟 核心修正：將整個根目錄設為靜態檔案目錄，強迫網頁正確向外抓取所有 JS/CSS 資源
+app.use(express.static(__dirname));
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -37,7 +39,7 @@ const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
   console.log('有新成員連線');
-  ws.room_id = null; // 初始化這個連線的房間欄位
+  ws.room_id = null; // 初始化房間名稱
 
   ws.on('message', async (message) => {
     try {
