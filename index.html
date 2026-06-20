@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 引入完全公開、不擋 CORS 的 cdnjs 官方地圖資源 -->
+    <!-- 引入高容許度、完全不阻擋 CORS 的 cdnjs 官方地圖資源 -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     <script src="https://cloudflare.com"></script>
 
@@ -53,19 +53,18 @@
 
         // 2. 初始化台灣地圖
         const map = L.map('map').setView([23.6, 121.0], 8);
-        
-        // 🌟 終極修正：將底圖網址與子網域全面鎖定在 https 安全通道，防禦 Mixed Content 阻擋
         L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
         const markerGroup = L.layerGroup().addTo(map);
 
-        // 3. 建立 WebSocket 連線
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const socket = new WebSocket(`${protocol}${window.location.host}`);
+        // 3. 🌟 終極定向：直接鎖定你的 Render 免費網址進行數據與 WebSocket 連線！
+        const serverHost = "my-line-atak.onrender.com";
+        const socket = new WebSocket(`wss://${serverHost}`);
 
         socket.onopen = () => {
+            console.log("已成功連接至 Render 數據中心");
             socket.send(JSON.stringify({ action: 'join', room_id: roomId }));
         };
 
