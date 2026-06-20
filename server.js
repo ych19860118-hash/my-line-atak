@@ -6,7 +6,10 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// 🌟 核心修復：當使用者輸入網址時，伺服器要正確發送 index.html 給手機或電腦！
+// 提供靜態檔案目錄，確保網頁能正確讀取
+app.use(express.static(__dirname));
+
+// 當使用者輸入網址時，伺服器要正確發送 index.html 給手機或電腦
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -70,7 +73,7 @@ wss.on('connection', (ws) => {
           [currentRoom, type, lat, lng, label]
         );
         
-        // 隔離廣播
+        // 隔離廣播：只發給目前在同一個房間內的人
         wss.clients.forEach(client => {
           if (client.readyState === WebSocket.OPEN && client.room_id === currentRoom) {
             client.send(JSON.stringify({ action: 'broadcast_marker', data: parsed.data }));
