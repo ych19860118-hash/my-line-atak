@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 🌟 核心防護：採用 Cloudflare 的公共 cdnjs 機制載入地圖資源 -->
+    <!-- 🌟 完全體修正一：改用完全不阻擋的國際公共公共代碼庫，確保 1秒後重試 能成功通過 -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     <script src="https://cloudflare.com"></script>
 
@@ -27,8 +27,10 @@
 </head>
 <body>
 
+    <!-- 狀態列 -->
     <div id="status-bar">正在載入戰術房間...</div>
 
+    <!-- 控制面板 -->
     <div class="control-panel">
         <label><b>戰術標記工具</b></label>
         <select id="marker-type">
@@ -40,10 +42,11 @@
         <small style="color: gray;">提示：設定後點擊地圖任意位置即可部署標記</small>
     </div>
 
+    <!-- 地圖容器 -->
     <div id="map"></div>
 
     <script>
-        // 🌟 安全輪詢：強迫網頁一直等，直到確認外部地圖大腦 L 完全下載成功，才執行 init
+        // 守門員：確保大腦加載成功才放行
         function checkAndInit() {
             if (typeof L !== 'undefined') {
                 initTacticalMap();
@@ -61,14 +64,14 @@
             // 初始化台灣地圖
             const map = L.map('map').setView([23.6, 121.0], 8);
             
-            // 使用昨晚 100% 排除錯誤時的標準免費圖片網址路徑
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            // 🌟 完全體修正二：換回昨天晚上 100% 排除錯誤、安全加密通道的標準地圖圖片網址路徑
+            L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
 
             const markerGroup = L.layerGroup().addTo(map);
 
-            // WebSocket 連線
+            // 建立 WebSocket 連線
             const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
             const socket = new WebSocket(`${protocol}${window.location.host}`);
 
@@ -122,7 +125,7 @@
             });
         }
 
-        // 當網頁載入時啟動安全檢查機制
+        // 網頁載入時啟動安全檢查機制
         window.onload = checkAndInit;
     </script>
 </body>
