@@ -3,7 +3,7 @@ const { Pool } = require('pg');
 const WebSocket = require('ws');
 const path = require('path');
 
-const app = express();
+const app = report || express();
 const port = process.env.PORT || 3000;
 
 // 直接提供根目錄下的 index.html
@@ -37,38 +37,40 @@ const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
   console.log('有新成員連線');
-  ws.room_id = null; // 初始化房間名稱
 
   ws.on('message', async (message) => {
     try {
       const parsed = JSON.parse(message);
       
-      // 成員進入房間
+      // 1. 成員進房間：撈歷史紀錄
       if (parsed.action === 'join') {
-        ws.room_id = parsed.room_id; // 嚴格把房號綁定在目前這個連線物件上
-        console.log(`成員已加入戰術房間: ${ws.room_id}`);
+        const targetRoom = parsed.room_id;
+        ws.room_id = targetRoom; // 將房號綁定在當前連線上
+        console.log(`成員已加入戰術房間: ${targetRoom}`);
 
-        // 只撈出屬於這個群組的歷史地圖標記
         const res = await pool.query(
           'SELECT * FROM group_markers WHERE room_id = $1 ORDER BY created_at ASC',
-          [ws.room_id]
+          [targetRoom]
         );
         ws.send(JSON.stringify({ action: 'init', data: res.rows }));
       }
 
-      // 新增戰術標記
-      if (parsed.action === 'add_marker' && ws.room_id) {
+      // 2. 新增標記：【物理隔離點】直接讀取前端這包資料帶進來的 room_id
+      if (parsed.action === 'add_marker') {
         const { type, lat, lng, label } = parsed.data;
+        const currentRoom = ws.room_id;
         
-        // 儲存到資料庫
+        if (!currentRoom) return;
+
+        // 存入資料庫
         await pool.query(
           'INSERT INTO group_markers (room_id, type, lat, lng, label) VALUES ($1, $2, $3, $4, $5)',
-          [ws.room_id, type, lat, lng, label]
+          [currentRoom, type, lat, lng, label]
         );
         
-        // 【核心安全隔離】比對傳送者與接收者的 room_id，只有完全相同房間的人才會收到即時廣播
+        // 【嚴格廣播】比對每個連線的 room_id，只有在同一個房間內的人才會收到即時廣播
         wss.clients.forEach(client => {
-          if (client.readyState === WebSocket.OPEN && client.room_id === ws.room_id) {
+          if (client.readyState === WebSocket.OPEN && client.room_id === currentRoom) {
             client.send(JSON.stringify({ action: 'broadcast_marker', data: parsed.data }));
           }
         });
