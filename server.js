@@ -3,7 +3,7 @@ const { Pool } = require('pg');
 const WebSocket = require('ws');
 const path = require('path');
 
-const app = report || express();
+const app = express();
 const port = process.env.PORT || 3000;
 
 // 直接提供根目錄下的 index.html
@@ -37,15 +37,16 @@ const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
   console.log('有新成員連線');
+  ws.room_id = null; // 初始化這個連線的房間欄位
 
   ws.on('message', async (message) => {
     try {
       const parsed = JSON.parse(message);
       
-      // 1. 成員進房間：撈歷史紀錄
+      // 1. 成員進房間：綁定房號並撈取該群組的歷史紀錄
       if (parsed.action === 'join') {
         const targetRoom = parsed.room_id;
-        ws.room_id = targetRoom; // 將房號綁定在當前連線上
+        ws.room_id = targetRoom; 
         console.log(`成員已加入戰術房間: ${targetRoom}`);
 
         const res = await pool.query(
@@ -55,12 +56,13 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ action: 'init', data: res.rows }));
       }
 
-      // 2. 新增標記：【物理隔離點】直接讀取前端這包資料帶進來的 room_id
+      // 2. 新增標記：【嚴格隔離】只發給房間 ID 完全一致的在線隊員
       if (parsed.action === 'add_marker') {
-        const { type, lat, lng, label } = parsed.data;
         const currentRoom = ws.room_id;
         
         if (!currentRoom) return;
+
+        const { type, lat, lng, label } = parsed.data;
 
         // 存入資料庫
         await pool.query(
@@ -68,7 +70,7 @@ wss.on('connection', (ws) => {
           [currentRoom, type, lat, lng, label]
         );
         
-        // 【嚴格廣播】比對每個連線的 room_id，只有在同一個房間內的人才會收到即時廣播
+        // 【核心隔離廣播】
         wss.clients.forEach(client => {
           if (client.readyState === WebSocket.OPEN && client.room_id === currentRoom) {
             client.send(JSON.stringify({ action: 'broadcast_marker', data: parsed.data }));
