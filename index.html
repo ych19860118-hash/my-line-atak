@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 🌟 終極修正：改用完全不阻擋 CORS 的 cdnjs 官方地圖資源 -->
+    <!-- 引入完全公開、不擋 CORS 的 cdnjs 官方地圖資源 -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     <script src="https://cloudflare.com"></script>
 
@@ -53,7 +53,9 @@
 
         // 2. 初始化台灣地圖
         const map = L.map('map').setView([23.6, 121.0], 8);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        
+        // 🌟 終極修正：將底圖網址與子網域全面鎖定在 https 安全通道，防禦 Mixed Content 阻擋
+        L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
