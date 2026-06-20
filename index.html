@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
-    <!-- 引入 Leaflet 地圖樣式 -->
+    
+    <!-- 🌟 核心修正：強迫地圖資源在最頂端優先載入 -->
     <link rel="stylesheet" href="https://unpkg.com" />
+    <script src="https://unpkg.com"></script>
+
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #eee; }
         #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
@@ -42,15 +45,13 @@
     <!-- 地圖容器 -->
     <div id="map"></div>
 
-    <!-- 引入 Leaflet 地圖核心腳本 -->
-    <script src="https://unpkg.com"></script>
     <script>
         // 1. 解析網址房號
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room') || 'public_lobby';
         document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
 
-        // 2. 初始化台灣地圖
+        // 2. 初始化台灣地圖 (此時 L 絕對已經定義好了)
         const map = L.map('map').setView([23.6, 121.0], 8);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
