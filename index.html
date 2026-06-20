@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 引入 cdnjs 官方地圖大腦資源 -->
+    <!-- 引入昨天排除錯誤後確認完全可用的 cdnjs 官方地圖資源 -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     <script src="https://cloudflare.com"></script>
 
@@ -54,14 +54,14 @@
         // 2. 初始化台灣地圖
         const map = L.map('map').setView([23.6, 121.0], 8);
         
-        // 🌟 核心修正：換回昨天晚上 100% 排除錯誤時使用的正確免費地圖網址路徑
+        // 使用昨天確認沒問題的標準圖片路徑
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
         const markerGroup = L.layerGroup().addTo(map);
 
-        // 3. 建立 WebSocket 連線（直接使用當前主機名稱）
+        // 3. 自動辨識當前網域建立 WebSocket 實時通訊
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(`${protocol}${window.location.host}`);
 
