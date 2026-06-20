@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 🌟 直接讀取你剛剛在專案裡建立的內置地圖檔 -->
-    <link rel="stylesheet" href="/leaflet.css" />
-    <script src="/leaflet.js"></script>
+    <!-- 引入高容許度、完全不阻擋 CORS 的 cdnjs 官方地圖資源 -->
+    <link rel="stylesheet" href="https://cloudflare.com" />
+    <script src="https://cloudflare.com"></script>
 
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #eee; }
@@ -43,80 +43,69 @@
     <div id="map"></div>
 
     <script>
-        // 確保地圖大腦下載完成後再執行
-        window.onload = function() {
-            if (typeof L === 'undefined') {
-                // 如果慢了一點，等一秒鐘再試
-                setTimeout(initMap, 1000);
-            } else {
-                initMap();
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room') || 'public_lobby';
+        document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
+
+        const map = L.map('map').setView([23.6, 121.0], 8);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const markerGroup = L.layerGroup().addTo(map);
+
+        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const socket = new WebSocket(`${protocol}${window.location.host}`);
+
+        socket.onopen = () => {
+            socket.send(JSON.stringify({ action: 'join', room_id: roomId }));
+        };
+
+        socket.onmessage = (event) => {
+            const parsed = JSON.parse(event.data);
+            if (parsed.action === 'init') {
+                markerGroup.clearLayers();
+                parsed.data.forEach(item => drawMarker(item));
+            }
+            if (parsed.action === 'broadcast_marker') {
+                drawMarker(parsed.data);
             }
         };
 
-        function initMap() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const roomId = urlParams.get('room') || 'public_lobby';
-            document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
+        function drawMarker(data) {
+            let color = 'blue';
+            if (data.type === 'hostile') color = 'red';
+            if (data.type === 'infantry') color = 'green';
 
-            const map = L.map('map').setView([23.6, 121.0], 8);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
+            const marker = L.circleMarker([data.lat, data.lng], {
+                radius: 10,
+                fillColor: color,
+                color: "#fff",
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(markerGroup);
 
-            const markerGroup = L.layerGroup().addTo(map);
-
-            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-            const socket = new WebSocket(`${protocol}${window.location.host}`);
-
-            socket.onopen = () => {
-                socket.send(JSON.stringify({ action: 'join', room_id: roomId }));
-            };
-
-            socket.onmessage = (event) => {
-                const parsed = JSON.parse(event.data);
-                if (parsed.action === 'init') {
-                    markerGroup.clearLayers();
-                    parsed.data.forEach(item => drawMarker(item));
-                }
-                if (parsed.action === 'broadcast_marker') {
-                    drawMarker(parsed.data);
-                }
-            };
-
-            function drawMarker(data) {
-                let color = 'blue';
-                if (data.type === 'hostile') color = 'red';
-                if (data.type === 'infantry') color = 'green';
-
-                const marker = L.circleMarker([data.lat, data.lng], {
-                    radius: 10,
-                    fillColor: color,
-                    color: "#fff",
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.8
-                }).addTo(markerGroup);
-
-                marker.bindPopup(`<b>${data.label || '未命名標記'}</b><br>類型: ${data.type}`);
-            }
-
-            map.on('click', (e) => {
-                const type = document.getElementById('marker-type').value;
-                const label = document.getElementById('marker-label').value || '未命名標記';
-                const lat = e.latlng.lat;
-                const lng = e.latlng.lng;
-
-                const markerData = { type, lat, lng, label };
-
-                socket.send(JSON.stringify({
-                    action: 'add_marker',
-                    data: markerData
-                }));
-
-                drawMarker(markerData);
-                document.getElementById('marker-label').value = '';
-            });
+            marker.bindPopup(`<b>${data.label || '未命名標記'}</b><br>類型: ${data.type}`);
         }
+
+        map.on('click', (e) => {
+            const type = document.getElementById('marker-type').value;
+            const label = document.getElementById('marker-label').value || '未命名標記';
+            const lat = e.latlng.lat;
+            const lng = e.latlng.lng;
+
+            const markerData = { type, lat, lng, label };
+
+            socket.send(JSON.stringify({
+                action: 'add_marker',
+                data: markerData
+            }));
+
+            drawMarker(markerData);
+            document.getElementById('marker-label').value = '';
+        });
     </script>
 </body>
 </html>
