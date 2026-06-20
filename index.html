@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 🌟 回歸最安全、直接讀取你自己專案內檔案的方式 -->
+    <!-- 🌟 最正規的本地引入：讀取你剛剛在專案裡建立的 leaflet 檔案 -->
     <link rel="stylesheet" href="/leaflet.css" />
     <script src="/leaflet.js"></script>
 
@@ -64,7 +64,7 @@
             // 初始化台灣地圖
             const map = L.map('map').setView([23.6, 121.0], 8);
             
-            // 🌟 採用全世界最穩定的 OpenStreetMap 標準安全加密通道（對齊你昨晚通關的版本）
+            // 🌟 採用全世界最穩定的 OpenStreetMap 標準安全加密通道
             L.tileLayer('https://openstreetmap.org{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
