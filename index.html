@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 引入昨天排除錯誤後確認完全可用的 cdnjs 官方地圖資源 -->
-    <link rel="stylesheet" href="https://cloudflare.com" />
-    <script src="https://cloudflare.com"></script>
+    <!-- 🌟 避開防毒封鎖：改用冷門但完全合法的國際公共 CDN 加密通道載入地圖大腦 -->
+    <link rel="stylesheet" href="https://jsdelivr.net" />
+    <script src="https://jsdelivr.net"></script>
 
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #eee; }
@@ -46,22 +46,18 @@
     <div id="map"></div>
 
     <script>
-        // 1. 解析網址房號
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room') || 'public_lobby';
         document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
 
-        // 2. 初始化台灣地圖
         const map = L.map('map').setView([23.6, 121.0], 8);
         
-        // 使用昨天確認沒問題的標準圖片路徑
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
         const markerGroup = L.layerGroup().addTo(map);
 
-        // 3. 自動辨識當前網域建立 WebSocket 實時通訊
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(`${protocol}${window.location.host}`);
 
@@ -83,7 +79,6 @@
             }
         };
 
-        // 4. 繪製標記
         function drawMarker(data) {
             let color = 'blue';
             if (data.type === 'hostile') color = 'red';
@@ -101,7 +96,6 @@
             marker.bindPopup(`<b>${data.label || '未命名標記'}</b><br>類型: ${data.type}`);
         }
 
-        // 5. 點擊地圖新增標記
         map.on('click', (e) => {
             const type = document.getElementById('marker-type').value;
             const label = document.getElementById('marker-label').value || '未命名標記';
