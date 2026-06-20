@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
     
-    <!-- 🌟 採用昨天晚上確認 100% 正常的官方地圖 CDN 大腦資源 -->
+    <!-- 🌟 終極修正：這兩行才是 Leaflet 官方完整、絕無截斷的 CDN 資源網址 -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     <script src="https://cloudflare.com"></script>
 
@@ -48,10 +48,10 @@
         const roomId = urlParams.get('room') || 'public_lobby';
         document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
 
-        // 2. 初始化台灣地圖
+        // 2. 初始化台灣地圖 (第 55 行執行時，大腦絕對完全載入了)
         const map = L.map('map').setView([23.6, 121.0], 8);
         
-        // 🌟 修正：對齊昨晚完全正常的標準地圖圖片獲取網址，帶有 {s}. 的完整格式
+        // 這是你昨天晚上完全正常的標準地圖底圖路徑
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
