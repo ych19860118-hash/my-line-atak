@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
+    <!-- 引入 Leaflet 地圖樣式 -->
     <link rel="stylesheet" href="https://unpkg.com" />
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        #map { height: 100vh; width: 100vw; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #eee; }
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
         #status-bar {
             position: absolute; top: 10px; left: 50px; z-index: 1000;
             background: rgba(0, 0, 0, 0.8); color: white;
@@ -16,15 +17,17 @@
         .control-panel {
             position: absolute; bottom: 20px; left: 20px; z-index: 1000;
             background: white; padding: 10px; border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3); width: 250px;
         }
-        select, input, button { margin: 5px 0; display: block; width: 100%; padding: 5px; }
+        select, input, button { margin: 5px 0; display: block; width: 100%; padding: 5px; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
+    <!-- 狀態列 -->
     <div id="status-bar">正在載入戰術房間...</div>
 
+    <!-- 控制面板 -->
     <div class="control-panel">
         <label><b>戰術標記工具</b></label>
         <select id="marker-type">
@@ -36,15 +39,18 @@
         <small style="color: gray;">提示：設定後點擊地圖任意位置即可部署標記</small>
     </div>
 
+    <!-- 地圖容器 -->
     <div id="map"></div>
 
+    <!-- 引入 Leaflet 地圖核心腳本 -->
     <script src="https://unpkg.com"></script>
     <script>
+        // 1. 解析網址房號
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room') || 'public_lobby';
-        
         document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
 
+        // 2. 初始化台灣地圖
         const map = L.map('map').setView([23.6, 121.0], 8);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
@@ -52,6 +58,7 @@
 
         const markerGroup = L.layerGroup().addTo(map);
 
+        // 3. 建立 WebSocket 連線
         const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
         const socket = new WebSocket(`${protocol}${window.location.host}`);
 
@@ -72,6 +79,7 @@
             }
         };
 
+        // 4. 繪製標記
         function drawMarker(data) {
             let color = 'blue';
             if (data.type === 'hostile') color = 'red';
@@ -89,6 +97,7 @@
             marker.bindPopup(`<b>${data.label || '未命名標記'}</b><br>類型: ${data.type}`);
         }
 
+        // 5. 點擊地圖新增標記
         map.on('click', (e) => {
             const type = document.getElementById('marker-type').value;
             const label = document.getElementById('marker-label').value || '未命名標記';
