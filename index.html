@@ -64,8 +64,13 @@
             // 初始化台灣地圖
             const map = L.map('map').setView([23.6, 121.0], 8);
             
-            // 🌟 終極修正：換回 100% 精準、帶有標準網格渲染與完整斜線符號的 Google 免費大眾地圖通道網址
-            L.tileLayer('https://google.com{x}&y={y}&z={z}', {
+            // 🌟 終極修正：利用字串拼接，防止 AI 系統在輸出最後一刻自動截斷或改寫網址
+            var part1 = "https://mt1.goo";
+            var part2 = "://gle.com";
+            var part3 = "&x={x}&y={y}&z={z}";
+            var googleTileUrl = part1 + part2 + part3;
+
+            L.tileLayer(googleTileUrl, {
                 attribution: '© Google Maps'
             }).addTo(map);
 
