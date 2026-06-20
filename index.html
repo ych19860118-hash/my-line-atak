@@ -4,140 +4,132 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>類 ATAK 戰術圖像平台</title>
+    
+    <!-- 引入 cdnjs 官方地圖大腦資源 -->
+    <link rel="stylesheet" href="https://cloudflare.com" />
+    <script src="https://cloudflare.com"></script>
+
     <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #111; color: #fff; overflow: hidden; }
-        /* 戰術雷達網格背景 */
-        #map-container {
-            width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1;
-            background-color: #0d1117;
-            background-image: 
-                linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px);
-            background-size: 40px 40px; background-position: center;
-        }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #eee; }
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; }
         #status-bar {
-            position: absolute; top: 10px; left: 20px; z-index: 1000;
-            background: rgba(0, 0, 0, 0.85); color: #00ff00; border: 1px solid #00ff00;
-            padding: 8px 15px; border-radius: 5px; font-size: 14px; font-family: monospace;
+            position: absolute; top: 10px; left: 50px; z-index: 1000;
+            background: rgba(0, 0, 0, 0.8); color: white;
+            padding: 8px 15px; border-radius: 5px; font-size: 14px;
         }
         .control-panel {
             position: absolute; bottom: 20px; left: 20px; z-index: 1000;
-            background: #161b22; padding: 15px; border-radius: 8px; border: 1px solid #30363d;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); width: 250px;
+            background: white; padding: 10px; border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3); width: 250px;
         }
-        label { color: #58a6ff; display: block; margin-bottom: 5px; }
-        select, input { margin: 5px 0 12px 0; display: block; width: 100%; padding: 8px; box-sizing: border-box; background: #0d1117; color: #fff; border: 1px solid #30363d; border-radius: 6px; }
-        .tactical-marker {
-            position: absolute; width: 24px; height: 24px; transform: translate(-50%, -50%);
-            border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 10px rgba(255,255,255,0.5);
-            cursor: pointer; z-index: 5; text-align: center; line-height: 20px; font-weight: bold; font-size: 12px;
-        }
-        .marker-label {
-            position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.8); color: #fff; padding: 2px 6px; border-radius: 4px;
-            font-size: 11px; white-space: nowrap; border: 1px solid #30363d;
-        }
+        select, input, button { margin: 5px 0; display: block; width: 100%; padding: 5px; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
-    <!-- 戰術雷達房間狀態列 -->
-    <div id="status-bar">SYS_STATUS: LAUNCHING...</div>
+    <!-- 狀態列 -->
+    <div id="status-bar">正在載入戰術房間...</div>
 
     <!-- 控制面板 -->
     <div class="control-panel">
-        <label><b>ATAK 戰術標記工具</b></label>
+        <label><b>戰術標記工具</b></label>
         <select id="marker-type">
             <option value="friendly">🔵 友軍位置 (Friendly)</option>
             <option value="hostile">🔴 敵軍/威脅 (Hostile)</option>
             <option value="infantry">⚔️ 任務目標 (Objective)</option>
         </select>
-        <label><b>標記名稱</b></label>
-        <input type="text" id="marker-label" placeholder="輸入標記代號 (如: 隊員A)">
-        <small style="color: #8b949e; font-size: 11px;">提示：設定後，直接點擊螢幕雷達任意位置即可即時部署戰術圖標</small>
+        <input type="text" id="marker-label" placeholder="輸入標記名稱">
+        <small style="color: gray;">提示：設定後點擊地圖任意位置即可部署標記</small>
     </div>
 
-    <!-- 雷達網格地圖容器 -->
-    <div id="map-container"></div>
+    <!-- 地圖容器 -->
+    <div id="map"></div>
 
     <script>
-        // 1. 解析網址房號
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room') || 'public_lobby';
-        document.getElementById('status-bar').innerText = `🎯 TACTICAL_ROOM: ${roomId} [CONNECTED]`;
-
-        const mapContainer = document.getElementById('map-container');
-
-        // 2. 自動辨識當前主機名稱建立 WebSocket 連線
-        const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-        const socket = new WebSocket(`${protocol}${window.location.host}`);
-
-        socket.onopen = () => {
-            socket.send(JSON.stringify({ action: 'join', room_id: roomId }));
-        };
-
-        socket.onmessage = (event) => {
-            const parsed = JSON.parse(event.data);
-            
-            // 進入房間時載入該房間歷史標記
-            if (parsed.action === 'init') {
-                document.querySelectorAll('.tactical-marker').forEach(m => m.remove()); // 清空舊的
-                parsed.data.forEach(item => drawTacticalMarker(item));
+        // 安全守門員：一直輪詢直到 Leaflet 大腦完全下載成功
+        function checkAndInit() {
+            if (typeof L !== 'undefined') {
+                initTacticalMap();
+            } else {
+                console.log("地圖資源下載中，1秒後重試...");
+                setTimeout(checkAndInit, 1000);
             }
-
-            // 接收同房間其他成員的即時戰術廣播
-            if (parsed.action === 'broadcast_marker') {
-                drawTacticalMarker(parsed.data);
-            }
-        };
-
-        // 3. 繪製完全內置的戰術圖標 (免載入外部圖片)
-        function drawTacticalMarker(data) {
-            const marker = document.createElement('div');
-            marker.className = 'tactical-marker';
-            
-            // 根據不同戰術性質給予軍規色彩
-            if (data.type === 'friendly') { marker.style.backgroundColor = '#1f6feb'; marker.innerText = 'F'; }
-            if (data.type === 'hostile') { marker.style.backgroundColor = '#da3633'; marker.innerText = 'H'; }
-            if (data.type === 'infantry') { marker.style.backgroundColor = '#238636'; marker.innerText = 'O'; }
-
-            // 物理百分比座標定位計算，防止不同螢幕解析度跑位
-            marker.style.left = data.lng + 'px';
-            marker.style.top = data.lat + 'px';
-
-            // 附加戰術名稱標籤
-            const labelSpan = document.createElement('span');
-            labelSpan.className = 'marker-label';
-            labelSpan.innerText = data.label || '未命名標記';
-            marker.appendChild(labelSpan);
-
-            mapContainer.appendChild(marker);
         }
 
-        // 4. 監聽點擊事件，當點擊雷達面板時，新增標記並發送給同群組的人
-        mapContainer.onmousedown = (e) => {
-            // 防止點擊到按鈕面板也觸發畫圖
-            if (e.target.id !== 'map-container') return;
+        function initTacticalMap() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomId = urlParams.get('room') || 'public_lobby';
+            document.getElementById('status-bar').innerText = `🎯 當前戰術房間：${roomId}`;
 
-            const type = document.getElementById('marker-type').value;
-            const label = document.getElementById('marker-label').value || '未命名標記';
+            // 初始化台灣地圖
+            const map = L.map('map').setView([23.6, 121.0], 8);
             
-            // 抓取當下的滑鼠點擊絕對座標
-            const lat = e.clientY;
-            const lng = e.clientX;
+            // 🌟 終極修正：直接使用 Google 官方免費公開、全世界最穩定的街道底圖路徑（不用 API 金鑰）
+            // 如果你想換成衛星圖，可以把網址最後的 lyrs=m 改成 lyrs=s,m
+            L.tileLayer('https://google.com{x}&y={y}&z={z}', {
+                attribution: '© Google Maps'
+            }).addTo(map);
 
-            const markerData = { type, lat, lng, label };
+            const markerGroup = L.layerGroup().addTo(map);
 
-            // 透過 WebSocket 傳送給後端伺服器隔離轉發
-            socket.send(JSON.stringify({
-                action: 'add_marker',
-                data: markerData
-            }));
+            // 建立 WebSocket 連線
+            const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const socket = new WebSocket(`${protocol}${window.location.host}`);
 
-            // 自己也立刻畫出來
-            drawTacticalMarker(markerData);
-            document.getElementById('marker-label').value = '';
-        };
+            socket.onopen = () => {
+                socket.send(JSON.stringify({ action: 'join', room_id: roomId }));
+            };
+
+            socket.onmessage = (event) => {
+                const parsed = JSON.parse(event.data);
+
+                if (parsed.action === 'init') {
+                    markerGroup.clearLayers();
+                    parsed.data.forEach(item => drawMarker(item));
+                }
+
+                if (parsed.action === 'broadcast_marker') {
+                    drawMarker(parsed.data);
+                }
+            };
+
+            function drawMarker(data) {
+                let color = 'blue';
+                if (data.type === 'hostile') color = 'red';
+                if (data.type === 'infantry') color = 'green';
+
+                const marker = L.circleMarker([data.lat, data.lng], {
+                    radius: 10,
+                    fillColor: color,
+                    color: "#fff",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(markerGroup);
+
+                marker.bindPopup(`<b>${data.label || '未命名標記'}</b><br>類型: ${data.type}`);
+            }
+
+            map.on('click', (e) => {
+                const type = document.getElementById('marker-type').value;
+                const label = document.getElementById('marker-label').value || '未命名標記';
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+
+                const markerData = { type, lat, lng, label };
+
+                socket.send(JSON.stringify({
+                    action: 'add_marker',
+                    data: markerData
+                }));
+
+                drawMarker(markerData);
+                document.getElementById('marker-label').value = '';
+            });
+        }
+
+        // 網頁載入時啟動安全檢查機制
+        window.onload = checkAndInit;
     </script>
 </body>
 </html>
